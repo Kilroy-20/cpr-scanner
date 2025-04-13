@@ -1,8 +1,8 @@
-name: Daily CPR Scanner
+name: Bitget Daily CPR Scanner
 
 on:
   schedule:
-    - cron: '3 0 * * *'  # Runs at 00:03 UTC daily
+    - cron: '3 0 * * *'  # Runs at 00:03 UTC (5:33 AM IST)
   workflow_dispatch:
 
 jobs:
@@ -20,5 +20,5 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run CPR Scan
+      - name: Run Bitget CPR Scan
         run: python main.py
