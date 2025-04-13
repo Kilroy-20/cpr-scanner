@@ -10,7 +10,6 @@ MONTHLY_WEBHOOK = "https://discord.com/api/webhooks/1361065958076321862/4aqHQybk
 SUPER_NARROW_THRESHOLD = 0.1
 NARROW_THRESHOLD = 0.25
 
-binance = ccxt.binance({'options': {'defaultType': 'future'}})
 bitget = ccxt.bitget({'options': {'defaultType': 'swap'}})
 
 def fetch_symbols(exchange):
@@ -30,9 +29,8 @@ def fetch_prev_candle(exchange, symbol, tf):
     except:
         return None
 
-def scan_market(name, exchange, tf):
+def scan_market(exchange, tf):
     narrow_list, super_narrow_list = [], []
-
     for symbol in fetch_symbols(exchange):
         width_pct = fetch_prev_candle(exchange, symbol, tf)
         if width_pct is not None:
@@ -40,29 +38,25 @@ def scan_market(name, exchange, tf):
                 super_narrow_list.append(symbol)
             elif width_pct <= NARROW_THRESHOLD:
                 narrow_list.append(symbol)
-
     return narrow_list, super_narrow_list
 
 def send_to_discord(webhook, title, narrow, super_narrow):
-    msg = f"**{title} CPR Scan**\n\n"
+    msg = f"**{title} CPR Scan (Bitget)**\n\n"
     msg += f"🟣 **Super Narrow** ({len(super_narrow)}):\n" + "\n".join(super_narrow[:20]) + "\n\n"
     msg += f"🔵 **Narrow** ({len(narrow)}):\n" + "\n".join(narrow[:20])
     requests.post(webhook, json={"content": msg})
 
 def run_daily():
-    for name, ex in [("Binance", binance), ("Bitget", bitget)]:
-        narrow, super_narrow = scan_market(name, ex, "1d")
-        send_to_discord(DAILY_WEBHOOK, f"{name} Daily", narrow, super_narrow)
+    narrow, super_narrow = scan_market(bitget, "1d")
+    send_to_discord(DAILY_WEBHOOK, "Daily", narrow, super_narrow)
 
 def run_weekly():
-    for name, ex in [("Binance", binance), ("Bitget", bitget)]:
-        narrow, super_narrow = scan_market(name, ex, "1w")
-        send_to_discord(WEEKLY_WEBHOOK, f"{name} Weekly", narrow, super_narrow)
+    narrow, super_narrow = scan_market(bitget, "1w")
+    send_to_discord(WEEKLY_WEBHOOK, "Weekly", narrow, super_narrow)
 
 def run_monthly():
-    for name, ex in [("Binance", binance), ("Bitget", bitget)]:
-        narrow, super_narrow = scan_market(name, ex, "1M")
-        send_to_discord(MONTHLY_WEBHOOK, f"{name} Monthly", narrow, super_narrow)
+    narrow, super_narrow = scan_market(bitget, "1M")
+    send_to_discord(MONTHLY_WEBHOOK, "Monthly", narrow, super_narrow)
 
 # === Smart run control ===
 today = datetime.utcnow()
@@ -76,3 +70,4 @@ if weekday == 0:
     run_weekly()
 
 run_daily()
+
