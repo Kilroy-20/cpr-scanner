@@ -5,7 +5,7 @@ from datetime import datetime
 
 bitget = ccxt.bitget({'options': {'defaultType': 'swap'}})
 SUPER_NARROW = 0.1
-NARROW = 0.25
+NARROW = 0.30
 
 DAILY_WEBHOOK = "https://discord.com/api/webhooks/1361051232537542968/L1jebjwpeYtZeLwqbSKpcGPQ-Eq9H3qNHBg_SvigGo7jiHipKGWCGHCB3om0DUjVaFXI"
 WEEKLY_WEBHOOK = "https://discord.com/api/webhooks/1361049636466458624/AHMfE0WGUgTC0AvJU2W25AhrUb9KGgimqfm2cU8y2bWG1odOyoHFRFPh37WPy6ARVTw8"
