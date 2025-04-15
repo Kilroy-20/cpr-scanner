@@ -4,7 +4,8 @@ import requests
 from datetime import datetime
 
 bitget = ccxt.bitget({'options': {'defaultType': 'swap'}})
-SUPER_NARROW = 0.25
+ULTRA_NARROW = 0.1
+SUPER_NARROW = 0.35
 NARROW = 0.75
 
 DAILY_WEBHOOK = "https://discord.com/api/webhooks/1361051232537542968/L1jebjwpeYtZeLwqbSKpcGPQ-Eq9H3qNHBg_SvigGo7jiHipKGWCGHCB3om0DUjVaFXI"
@@ -14,7 +15,7 @@ COMBO_WEBHOOK = "https://discord.com/api/webhooks/1361188778319941682/amzQDeomNp
 LOG_WEBHOOK = "https://discord.com/api/webhooks/1361189673984069652/zWCeoLGVIw1-747cGtMoRLyEZ8H4EXpPfd1D3bCzg1E-u8vg1fNstLFl0Fnh8Js9XV3P"
 
 def fetch_symbols():
-    return [s['symbol'] for s in bitget.load_markets().values() if '/USDT' in s['symbol'] and s['active']]
+    return sorted([s['symbol'] for s in bitget.load_markets().values() if '/USDT' in s['symbol'] and s['active']])
 
 def get_width(symbol, tf):
     try:
@@ -31,29 +32,34 @@ def get_width(symbol, tf):
         return None
 
 def scan(timeframe):
-    n, sn = [], []
+    narrow, super_narrow, ultra_narrow = [], [], []
     for sym in fetch_symbols():
         w = get_width(sym, timeframe)
         if w is None:
             continue
-        if w <= SUPER_NARROW:
-            sn.append((sym, w))
-        elif w <= NARROW:
-            n.append((sym, w))
-    return n, sn
+        if w < ULTRA_NARROW:
+            ultra_narrow.append((sym, w))
+        elif w < SUPER_NARROW:
+            super_narrow.append((sym, w))
+        elif w < NARROW:
+            narrow.append((sym, w))
+    return narrow, super_narrow, ultra_narrow
 
 def format_lines(results, dot):
-    return [f"{dot} {s[0]} - {s[1]}%" for s in results]
+    return [f"{dot} {s[0]} - {s[1]}%" for s in sorted(results)]
 
-def post_results(title, narrow, super_narrow, webhook, dot, filename):
+def post_results(title, n, sn, un, webhook, dot, filename):
     msg = f"**{dot} {title} CPR Scan**\n"
     lines = []
-    if super_narrow:
-        msg += f"\n🟣 **Super Narrow** ({len(super_narrow)}):\n" + "\n".join(format_lines(super_narrow, dot))
-        lines += [f"Super Narrow: {s[0]} - {s[1]}%" for s in super_narrow]
-    if narrow:
-        msg += f"\n\n🔵 **Narrow** ({len(narrow)}):\n" + "\n".join(format_lines(narrow, dot))
-        lines += [f"Narrow: {s[0]} - {s[1]}%" for s in narrow]
+    if un:
+        msg += f"\n🔴 **Ultra Narrow** ({len(un)}):\n" + "\n".join(format_lines(un, dot))
+        lines += [f"Ultra Narrow: {s[0]} - {s[1]}%" for s in sorted(un)]
+    if sn:
+        msg += f"\n🟣 **Super Narrow** ({len(sn)}):\n" + "\n".join(format_lines(sn, dot))
+        lines += [f"Super Narrow: {s[0]} - {s[1]}%" for s in sorted(sn)]
+    if n:
+        msg += f"\n🔵 **Narrow** ({len(n)}):\n" + "\n".join(format_lines(n, dot))
+        lines += [f"Narrow: {s[0]} - {s[1]}%" for s in sorted(n)]
 
     requests.post(webhook, json={"content": msg})
     with open(filename, "w") as f:
@@ -68,27 +74,24 @@ def log(message):
     with open("log.txt", "rb") as f:
         requests.post(LOG_WEBHOOK, files={"file": f})
 
-def combo_report(dn, ds, wn, ws, mn, ms, is_monday, is_first):
+def combo_report(d, w, m):
     results = []
     dot_daily, dot_weekly, dot_monthly = "🔵", "🟡", "🔴"
-    all_syms = set(s[0] for s in dn + ds)
+    all_syms = set(x[0] for group in d + w + m for x in group)
 
-    for sym in all_syms:
-        d = any(s[0] == sym for s in dn)
-        dsym = any(s[0] == sym for s in ds)
-        w = any(s[0] == sym for s in wn)
-        wsym = any(s[0] == sym for s in ws)
-        m = any(s[0] == sym for s in mn)
-        msym = any(s[0] == sym for s in ms)
-
-        if is_first and d and w and m:
-            results.append(f"{dot_daily}{dot_weekly}{dot_monthly} {sym} - Narrow CPR Combo")
-        elif is_first and dsym and wsym and msym:
-            results.append(f"{dot_daily}{dot_weekly}{dot_monthly} {sym} - Super Narrow CPR Combo")
-        elif is_monday and d and w:
-            results.append(f"{dot_daily}{dot_weekly} {sym} - Narrow CPR Combo")
-        elif is_monday and dsym and wsym:
-            results.append(f"{dot_daily}{dot_weekly} {sym} - Super Narrow CPR Combo")
+    for sym in sorted(all_syms):
+        count = sum([
+            any(x[0] == sym for x in d),
+            any(x[0] == sym for x in w),
+            any(x[0] == sym for x in m)
+        ])
+        if count >= 2:
+            dots = "".join([
+                dot_daily if any(x[0] == sym for x in d) else "",
+                dot_weekly if any(x[0] == sym for x in w) else "",
+                dot_monthly if any(x[0] == sym for x in m) else ""
+            ])
+            results.append(f"{dots} {sym} - Combo Narrow CPR")
 
     if results:
         with open("combo_results.txt", "w") as f:
@@ -99,22 +102,15 @@ def combo_report(dn, ds, wn, ws, mn, ms, is_monday, is_first):
         requests.post(COMBO_WEBHOOK, json={"content": msg})
 
 def main():
-    today = datetime.utcnow()
-    is_monday = today.weekday() == 0
-    is_first = today.day == 1
-
-    dn, ds = scan("1d")
-    wn, ws = scan("1w") if is_monday or is_first else ([], [])
-    mn, ms = scan("1M") if is_first else ([], [])
-
     try:
-        post_results("Daily", dn, ds, DAILY_WEBHOOK, "🔵", "daily_results.txt")
-        if is_monday:
-            post_results("Weekly", wn, ws, WEEKLY_WEBHOOK, "🟡", "weekly_results.txt")
-        if is_first:
-            post_results("Monthly", mn, ms, MONTHLY_WEBHOOK, "🔴", "monthly_results.txt")
-        if is_monday or is_first:
-            combo_report(dn, ds, wn, ws, mn, ms, is_monday, is_first)
+        dn, ds, du = scan("1d")
+        wn, ws, wu = scan("1w")
+        mn, ms, mu = scan("1M")
+
+        post_results("Daily", dn, ds, du, DAILY_WEBHOOK, "🔵", "daily_results.txt")
+        post_results("Weekly", wn, ws, wu, WEEKLY_WEBHOOK, "🟡", "weekly_results.txt")
+        post_results("Monthly", mn, ms, mu, MONTHLY_WEBHOOK, "🔴", "monthly_results.txt")
+        combo_report([dn, ds, du], [wn, ws, wu], [mn, ms, mu])
         log("✅ Script ran successfully")
     except Exception as e:
         log(f"❌ Error occurred: {e}")
