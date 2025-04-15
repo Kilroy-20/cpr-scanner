@@ -81,15 +81,15 @@ def combo_report(d, w, m):
 
     for sym in sorted(all_syms):
         count = sum([
-            any(x[0] == sym for x in d),
-            any(x[0] == sym for x in w),
-            any(x[0] == sym for x in m)
+            any(x[0] == sym for x in d[0] + d[1] + d[2]),
+            any(x[0] == sym for x in w[0] + w[1] + w[2]),
+            any(x[0] == sym for x in m[0] + m[1] + m[2])
         ])
         if count >= 2:
             dots = "".join([
-                dot_daily if any(x[0] == sym for x in d) else "",
-                dot_weekly if any(x[0] == sym for x in w) else "",
-                dot_monthly if any(x[0] == sym for x in m) else ""
+                dot_daily if any(x[0] == sym for x in d[0] + d[1] + d[2]) else "",
+                dot_weekly if any(x[0] == sym for x in w[0] + w[1] + w[2]) else "",
+                dot_monthly if any(x[0] == sym for x in m[0] + m[1] + m[2]) else ""
             ])
             results.append(f"{dots} {sym} - Combo Narrow CPR")
 
